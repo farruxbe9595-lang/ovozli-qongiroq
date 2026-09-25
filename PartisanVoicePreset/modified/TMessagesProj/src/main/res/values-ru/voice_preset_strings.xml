@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="VoicePreset">Режим изменения голоса</string>
+    <string name="RandomVoicePreset">Случайная маскировка голоса</string>
+    <string name="FemaleVoicePreset">Женский голос</string>
+    <string name="FemaleVoicePresetDescription">Повышает высоту и тембр голоса без случайных искажений. Настройте параметры ниже и сравните запись. Результат зависит от вашего голоса.</string>
+    <string name="FemaleVoicePitch">Высота женского голоса</string>
+    <string name="FemaleVoiceTone">Тембр женского голоса</string>
+    <string name="FemaleVoiceNextCall">Для женского голоса используется среднее качество. Изменения применятся к следующему звонку. Проверьте новые настройки с помощью записи ниже.</string>
+</resources>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="VoicePreset">Voice preset</string>
+    <string name="RandomVoicePreset">Random voice disguise</string>
+    <string name="FemaleVoicePreset">Female voice</string>
+    <string name="FemaleVoicePresetDescription">Raises pitch and vocal tone without random distortion. Adjust the controls below, then compare your recorded voice. The result depends on your own voice.</string>
+    <string name="FemaleVoicePitch">Female voice pitch</string>
+    <string name="FemaleVoiceTone">Female voice tone</string>
+    <string name="FemaleVoiceNextCall">Female voice uses medium quality. Changes apply to the next call. Use the recording test below to hear the new settings.</string>
+</resources>

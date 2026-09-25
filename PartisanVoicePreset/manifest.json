@@ -1,0 +1,31 @@
+{
+  "upstream": "wrwrabbit/Partisan-Telegram-Android",
+  "commit": "513865a0b8a1e521eb58403c1b787c5845c28ffc",
+  "files": [
+    {
+      "path": "TMessagesProj/src/main/java/org/telegram/messenger/partisan/voicechange/VoiceChangeSettings.java",
+      "original_sha256": "e578d655bb475e8ba5574da58739574bc3183733b73a0345582fce73b221faa2",
+      "modified_sha256": "7d1e4121b30951632ad13abf1f0529d69f789769e98666b674c3cd710226f95d"
+    },
+    {
+      "path": "TMessagesProj/src/main/java/org/telegram/messenger/partisan/voicechange/VoiceChangeSettingsFragment.java",
+      "original_sha256": "46b7caa42cc3255537450e127c777ead6d3ca58a9a0cd1e8c33a54617aa85994",
+      "modified_sha256": "68db56fe136c6c79615c6e537b8f480d4df45bbdd57b47b6db5afa06afa6ada1"
+    },
+    {
+      "path": "TMessagesProj/src/main/java/org/telegram/messenger/partisan/voicechange/VoiceChangeSettingsGenerator.java",
+      "original_sha256": "f9a8bc06baed088ddfc36e69f01ba8e97d14b3dd42cf0f9d39fe8f79b9ead418",
+      "modified_sha256": "19cddd7ce635e69274bef94538b38bbc6c4af56609e517565216beab96eba95a"
+    },
+    {
+      "path": "TMessagesProj/src/main/res/values/voice_preset_strings.xml",
+      "original_sha256": null,
+      "modified_sha256": "7219b8626040b4d73f3c596d077564e6270d7cac0ee45827ac78ac2f736ac531"
+    },
+    {
+      "path": "TMessagesProj/src/main/res/values-ru/voice_preset_strings.xml",
+      "original_sha256": null,
+      "modified_sha256": "91f59bf406748d56a6985a51afe0df0dc238896d91705077cbcab6c01f689a5c"
+    }
+  ]
+}

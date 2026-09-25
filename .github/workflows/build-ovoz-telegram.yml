@@ -1,0 +1,79 @@
+name: Build Ovoz Telegram test APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/ovoz-female-voice']
+    paths:
+      - 'PartisanVoicePreset/**'
+      - '.github/workflows/build-ovoz-telegram.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ovoz-telegram-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify preset logic
+        run: python3 PartisanVoicePreset/tests/run_tests.py --drafts PartisanVoicePreset --runtime "$RUNNER_TEMP/preset-tests"
+      - name: Fetch pinned Partisan source
+        uses: actions/checkout@v4
+        with:
+          repository: wrwrabbit/Partisan-Telegram-Android
+          ref: 513865a0b8a1e521eb58403c1b787c5845c28ffc
+          path: upstream
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/TMessagesProj/jni/
+            !/wiki_images/
+      - name: Fetch Java math dependency
+        working-directory: upstream
+        run: git submodule update --init --depth 1 TMessagesProj/lib/jlatexmath
+      - name: Download verified upstream native libraries
+        run: |
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/partisan-official.apk" 'https://github.com/wrwrabbit/Partisan-Telegram-Android/releases/download/ptg-4.4.5/PTelegram.apk'
+          python3 PartisanVoicePreset/prepare_build.py --source upstream --apk "$RUNNER_TEMP/partisan-official.apk"
+      - name: Install Android platform
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Build Telegram APK
+        working-directory: upstream
+        run: gradle --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx5g -XX:MaxMetaspaceSize=1g' --stacktrace :TMessagesProj_App:assembleAfatDebug
+      - name: Verify and collect APK
+        run: |
+          mkdir -p deliverables
+          APK=upstream/TMessagesProj_App/build/outputs/apk/afat/debug/app.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" > deliverables/apk-info.txt
+          cp "$APK" deliverables/Ovoz-Telegram-test.apk
+          sha256sum deliverables/Ovoz-Telegram-test.apk > deliverables/SHA256SUMS.txt
+          printf '%s\n' 'Upstream: wrwrabbit/Partisan-Telegram-Android' 'Commit: 513865a0b8a1e521eb58403c1b787c5845c28ffc' 'Native libraries: unchanged from verified ptg-4.4.5 release' 'Package: org.telegram.messenger.beta' 'Test build: real calls and voice quality require phone testing' > deliverables/build-info.txt
+          cp PartisanVoicePreset/female-voice.patch deliverables/
+          cp PartisanVoicePreset/LICENSE deliverables/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Ovoz-Telegram-test-apk
+          path: deliverables/
+          if-no-files-found: error
+          retention-days: 14

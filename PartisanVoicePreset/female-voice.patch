@@ -1,0 +1,271 @@
+--- a/TMessagesProj/src/main/java/org/telegram/messenger/partisan/voicechange/VoiceChangeSettings.java
++++ b/TMessagesProj/src/main/java/org/telegram/messenger/partisan/voicechange/VoiceChangeSettings.java
+@@ -20,7 +20,18 @@
+ 
+ public class VoiceChangeSettings {
+ 
++    public static final float DEFAULT_FEMALE_PITCH = 1.6f;
++    public static final float DEFAULT_FEMALE_FORMANT_RATIO = 1.2f;
++    public static final float MIN_FEMALE_PITCH = 1.25f;
++    public static final float MAX_FEMALE_PITCH = 2.0f;
++    public static final float MIN_FEMALE_FORMANT_RATIO = 1.05f;
++    public static final float MAX_FEMALE_FORMANT_RATIO = 1.4f;
++
+     public static final BooleanSetting voiceChangeEnabled = new BooleanSetting("voiceChangeEnabled", false);
++    public static final BooleanSetting femaleVoiceEnabled = new BooleanSetting("femaleVoiceEnabled", false);
++    public static final FloatSetting femaleVoicePitch = new FloatSetting("femaleVoicePitch", DEFAULT_FEMALE_PITCH);
++    public static final FloatSetting femaleVoiceFormantRatio = new FloatSetting("femaleVoiceFormantRatio", DEFAULT_FEMALE_FORMANT_RATIO);
++    public static final IntSetting qualityBeforeFemaleVoice = new IntSetting("qualityBeforeFemaleVoice", 1);
+     public static final BooleanSetting aggressiveChangeLevel = new BooleanSetting("aggressiveChangeLevel", true);
+     public static final StringSetting spectrumDistortionParams = new StringSetting("spectrumDistortionParams", "");
+     public static final FloatSetting f0Shift = new FloatSetting("f0Shift", 1.0f);
+--- a/TMessagesProj/src/main/java/org/telegram/messenger/partisan/voicechange/VoiceChangeSettingsFragment.java
++++ b/TMessagesProj/src/main/java/org/telegram/messenger/partisan/voicechange/VoiceChangeSettingsFragment.java
+@@ -48,6 +48,9 @@
+ import java.util.stream.Collectors;
+ 
+ public class VoiceChangeSettingsFragment extends PartisanBaseFragment {
++    private static final float[] FEMALE_PITCH_VALUES = {1.25f, 1.4f, 1.6f, 1.8f, 2.0f};
++    private static final float[] FEMALE_FORMANT_VALUES = {1.05f, 1.1f, 1.2f, 1.3f, 1.4f};
++
+     private AbstractViewItem aggressiveChangeLevelItem;
+     private AbstractViewItem moderateChangeLevelItem;
+     private AbstractViewItem recordItem;
+@@ -90,16 +93,51 @@
+                 new DelimiterItem(this),
+ 
+ 
++                new HeaderItem(this, getString(R.string.VoicePreset)),
++                new RadioButtonItem(this, getString(R.string.RandomVoicePreset),
++                        () -> !VoiceChangeSettings.femaleVoiceEnabled.getOrDefault(),
++                        () -> selectFemaleVoice(false))
++                        .addEnabledCondition(this::isVoiceChangeEnabled),
++                new RadioButtonItem(this, getString(R.string.FemaleVoicePreset),
++                        VoiceChangeSettings.femaleVoiceEnabled::getOrDefault,
++                        () -> selectFemaleVoice(true))
++                        .addEnabledCondition(this::isVoiceChangeEnabled),
++                new DescriptionItem(this, getString(R.string.FemaleVoicePresetDescription)),
++
++                new HeaderItem(this, getString(R.string.FemaleVoicePitch)),
++                new ValuesSlideChooseItem(this, new String[]{"1.25×", "1.40×", "1.60×", "1.80×", "2.00×"},
++                        () -> closestValueIndex(FEMALE_PITCH_VALUES, VoiceChangeSettings.femaleVoicePitch.getOrDefault()),
++                        index -> {
++                            if (!isFemaleVoiceEnabled() || index < 0 || index >= FEMALE_PITCH_VALUES.length) {
++                                return;
++                            }
++                            VoiceChangeSettings.femaleVoicePitch.set(FEMALE_PITCH_VALUES[index]);
++                            femaleVoiceParametersChanged();
++                        })
++                        .addEnabledCondition(this::isFemaleVoiceEnabled),
++                new HeaderItem(this, getString(R.string.FemaleVoiceTone)),
++                new ValuesSlideChooseItem(this, new String[]{"1.05×", "1.10×", "1.20×", "1.30×", "1.40×"},
++                        () -> closestValueIndex(FEMALE_FORMANT_VALUES, VoiceChangeSettings.femaleVoiceFormantRatio.getOrDefault()),
++                        index -> {
++                            if (!isFemaleVoiceEnabled() || index < 0 || index >= FEMALE_FORMANT_VALUES.length) {
++                                return;
++                            }
++                            VoiceChangeSettings.femaleVoiceFormantRatio.set(FEMALE_FORMANT_VALUES[index]);
++                            femaleVoiceParametersChanged();
++                        })
++                        .addEnabledCondition(this::isFemaleVoiceEnabled),
++                new DescriptionItem(this, getString(R.string.FemaleVoiceNextCall)),
++
+                 new HeaderItem(this, getString(R.string.VoiceChangeLevel)),
+                 aggressiveChangeLevelItem = new RadioButtonItem(this, getString(R.string.AggressiveVoiceChange),
+                         VoiceChangeSettings.aggressiveChangeLevel::getOrDefault,
+                         () -> changeAggressiveness(true))
+-                        .addEnabledCondition(this::isVoiceChangeEnabled),
++                        .addEnabledCondition(this::isRandomVoiceChangeEnabled),
+                 new DescriptionItem(this, getString(R.string.AggressiveVoiceChangeDescription)),
+                 moderateChangeLevelItem = new RadioButtonItem(this, getString(R.string.ModerateVoiceChange),
+                         () -> !VoiceChangeSettings.aggressiveChangeLevel.getOrDefault(),
+                         () -> changeAggressiveness(false))
+-                        .addEnabledCondition(this::isVoiceChangeEnabled),
++                        .addEnabledCondition(this::isRandomVoiceChangeEnabled),
+                 new DescriptionItem(this, getString(R.string.ModerateVoiceChangeDescription)),
+ 
+ 
+@@ -108,7 +146,7 @@
+                         new String[]{getString(R.string.Quality480) /*Low*/, getString(R.string.Quality720) /*Medium*/, getString(R.string.Quality1080) /*High*/},
+                         VoiceChangeSettingsFragment::getQualityIndex,
+                         this::setQuality)
+-                        .addEnabledCondition(this::isVoiceChangeEnabled),
++                        .addEnabledCondition(this::isRandomVoiceChangeEnabled),
+                 new DescriptionItem(this, getString(R.string.VoiceChangeQualityDescription)),
+ 
+ 
+@@ -126,13 +164,16 @@
+ 
+                 new ButtonWithIconItem(this, getString(R.string.GenerateNewVoiceChangeParameters), R.drawable.quantum_ic_refresh_white_24,
+                         view -> {
++                            if (!isRandomVoiceChangeEnabled()) {
++                                return;
++                            }
+                             new VoiceChangeSettingsGenerator().generateParameters(true);
+                             voiceChangingParametersChanged();
+                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                             Toast.makeText(getContext(), getString(R.string.VoiceChanged), Toast.LENGTH_SHORT).show();
+                             showCurrentCallWillNotBeAffectedDialogIfNeeded();
+                         })
+-                        .addEnabledCondition(this::isVoiceChangeEnabled),
++                        .addEnabledCondition(this::isRandomVoiceChangeEnabled),
+                 new DescriptionItem(this, getString(R.string.GenerateNewVoiceChangeParametersDescription)),
+ 
+ 
+@@ -185,6 +226,44 @@
+         return VoiceChangeSettings.voiceChangeEnabled.get().orElse(false);
+     }
+ 
++    private boolean isFemaleVoiceEnabled() {
++        return isVoiceChangeEnabled() && VoiceChangeSettings.femaleVoiceEnabled.getOrDefault();
++    }
++
++    private static int closestValueIndex(float[] values, float value) {
++        if (Float.isNaN(value) || Float.isInfinite(value)) {
++            return values.length / 2;
++        }
++        int closest = 0;
++        for (int i = 1; i < values.length; i++) {
++            if (Math.abs(values[i] - value) < Math.abs(values[closest] - value)) {
++                closest = i;
++            }
++        }
++        return closest;
++    }
++
++    private boolean isRandomVoiceChangeEnabled() {
++        return isVoiceChangeEnabled() && !VoiceChangeSettings.femaleVoiceEnabled.getOrDefault();
++    }
++
++    private void selectFemaleVoice(boolean female) {
++        if (!isVoiceChangeEnabled() || !VoiceChangeSettingsGenerator.setFemaleVoiceEnabled(female)) {
++            return;
++        }
++        voiceChangingParametersChanged();
++        listAdapter.notifyItemRangeChanged(0, listAdapter.getItemCount());
++        showCurrentCallWillNotBeAffectedDialogIfNeeded();
++    }
++
++    private void femaleVoiceParametersChanged() {
++        if (!isFemaleVoiceEnabled()) {
++            return;
++        }
++        new VoiceChangeSettingsGenerator().generateParameters(false);
++        voiceChangingParametersChanged();
++    }
++
+     private void showCurrentCallWillNotBeAffectedDialogIfNeeded() {
+         if (isInCall()) {
+             AlertDialog dialog = AlertsCreator
+@@ -199,6 +278,9 @@
+     }
+ 
+     private void changeAggressiveness(boolean aggressive) {
++        if (!isRandomVoiceChangeEnabled()) {
++            return;
++        }
+         if (VoiceChangeSettings.aggressiveChangeLevel.get().orElse(true) != aggressive) {
+             VoiceChangeSettings.aggressiveChangeLevel.set(aggressive);
+             new VoiceChangeSettingsGenerator().generateParameters(false);
+@@ -219,6 +301,9 @@
+     }
+ 
+     private void setQuality(Integer value) {
++        if (!isRandomVoiceChangeEnabled()) {
++            return;
++        }
+         if (value == 0) {
+             VoiceChangeSettings.useSpectrumDistortion.set(true);
+             VoiceChangeSettings.formantShiftingHarvest.set(false);
+--- a/TMessagesProj/src/main/java/org/telegram/messenger/partisan/voicechange/VoiceChangeSettingsGenerator.java
++++ b/TMessagesProj/src/main/java/org/telegram/messenger/partisan/voicechange/VoiceChangeSettingsGenerator.java
+@@ -14,7 +14,29 @@
+     public static final float MAX_MODERATE_SHIFT = 1.4f;
+     private Random random;
+ 
++    public static boolean setFemaleVoiceEnabled(boolean enabled) {
++        if (VoiceChangeSettings.femaleVoiceEnabled.getOrDefault() == enabled) {
++            return false;
++        }
++        if (enabled) {
++            int quality = VoiceChangeSettings.useSpectrumDistortion.getOrDefault() ? 0
++                    : VoiceChangeSettings.formantShiftingHarvest.getOrDefault() ? 2 : 1;
++            VoiceChangeSettings.qualityBeforeFemaleVoice.set(quality);
++        } else {
++            int quality = VoiceChangeSettings.qualityBeforeFemaleVoice.getOrDefault();
++            VoiceChangeSettings.useSpectrumDistortion.set(quality == 0);
++            VoiceChangeSettings.formantShiftingHarvest.set(quality == 2);
++        }
++        VoiceChangeSettings.femaleVoiceEnabled.set(enabled);
++        new VoiceChangeSettingsGenerator().generateParameters(false);
++        return true;
++    }
++
+     public void generateParameters(boolean newSeed) {
++        if (VoiceChangeSettings.femaleVoiceEnabled.getOrDefault()) {
++            generateFemaleParameters();
++            return;
++        }
+         if (newSeed) {
+             generateNewSeed();
+         }
+@@ -24,6 +46,33 @@
+         } else {
+             generateHighQualityParams();
+         }
++    }
++
++    private void generateFemaleParameters() {
++        float pitch = clampFemaleParameter(VoiceChangeSettings.femaleVoicePitch.getOrDefault(),
++                VoiceChangeSettings.DEFAULT_FEMALE_PITCH,
++                VoiceChangeSettings.MIN_FEMALE_PITCH, VoiceChangeSettings.MAX_FEMALE_PITCH);
++        float formantRatio = clampFemaleParameter(VoiceChangeSettings.femaleVoiceFormantRatio.getOrDefault(),
++                VoiceChangeSettings.DEFAULT_FEMALE_FORMANT_RATIO,
++                VoiceChangeSettings.MIN_FEMALE_FORMANT_RATIO, VoiceChangeSettings.MAX_FEMALE_FORMANT_RATIO);
++
++        // Use WORLD with stable, upward shifts. Random disguise settings must not leak into this preset.
++        VoiceChangeSettings.useSpectrumDistortion.set(false);
++        VoiceChangeSettings.formantShiftingHarvest.set(false);
++        VoiceChangeSettings.spectrumDistortionParams.set("");
++        VoiceChangeSettings.f0Shift.set(pitch);
++        VoiceChangeSettings.lowRatio.set(formantRatio);
++        VoiceChangeSettings.midRatio.set(formantRatio);
++        VoiceChangeSettings.highRatio.set(formantRatio);
++        VoiceChangeSettings.maxFormantSpread.set(0.0f);
++        resetBadSoundsParams();
++    }
++
++    private static float clampFemaleParameter(float value, float fallback, float min, float max) {
++        if (Float.isNaN(value) || Float.isInfinite(value)) {
++            return fallback;
++        }
++        return Math.max(min, Math.min(max, value));
+     }
+ 
+     private static void generateNewSeed() {
+--- /dev/null
++++ b/TMessagesProj/src/main/res/values/voice_preset_strings.xml
+@@ -0,0 +1,10 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="VoicePreset">Voice preset</string>
++    <string name="RandomVoicePreset">Random voice disguise</string>
++    <string name="FemaleVoicePreset">Female voice</string>
++    <string name="FemaleVoicePresetDescription">Raises pitch and vocal tone without random distortion. Adjust the controls below, then compare your recorded voice. The result depends on your own voice.</string>
++    <string name="FemaleVoicePitch">Female voice pitch</string>
++    <string name="FemaleVoiceTone">Female voice tone</string>
++    <string name="FemaleVoiceNextCall">Female voice uses medium quality. Changes apply to the next call. Use the recording test below to hear the new settings.</string>
++</resources>
+--- /dev/null
++++ b/TMessagesProj/src/main/res/values-ru/voice_preset_strings.xml
+@@ -0,0 +1,10 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="VoicePreset">Режим изменения голоса</string>
++    <string name="RandomVoicePreset">Случайная маскировка голоса</string>
++    <string name="FemaleVoicePreset">Женский голос</string>
++    <string name="FemaleVoicePresetDescription">Повышает высоту и тембр голоса без случайных искажений. Настройте параметры ниже и сравните запись. Результат зависит от вашего голоса.</string>
++    <string name="FemaleVoicePitch">Высота женского голоса</string>
++    <string name="FemaleVoiceTone">Тембр женского голоса</string>
++    <string name="FemaleVoiceNextCall">Для женского голоса используется среднее качество. Изменения применятся к следующему звонку. Проверьте новые настройки с помощью записи ниже.</string>
++</resources>
