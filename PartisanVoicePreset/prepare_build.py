@@ -51,7 +51,9 @@ def main():
     with zipfile.ZipFile(args.apk) as apk:
         for name in apk.namelist():
             parts = PurePosixPath(name).parts
-            if len(parts) != 3 or parts[0] != 'lib' or parts[1] not in ('arm64-v8a', 'armeabi-v7a') or not parts[2].endswith('.so'):
+            # Third-party AARs supply their own natives (for example ML Kit).
+            # Only Telegram's CMake target is replaced by the verified release binary.
+            if len(parts) != 3 or parts[0] != 'lib' or parts[1] not in ('arm64-v8a', 'armeabi-v7a') or parts[2] != 'libtmessages.49.so':
                 continue
             destination = natives / parts[1] / parts[2]
             destination.parent.mkdir(parents=True, exist_ok=True)
